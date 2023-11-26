@@ -1,0 +1,10 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+/AM2050B/.vs/AM2050B
+/AM2050B/x64/Debug
