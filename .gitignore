@@ -8,3 +8,5 @@
 *.vcxproj.user
 /AM2050B/.vs/AM2050B
 /AM2050B/x64/Debug
+/AM2050B/data
+/AM2050B/data_spiral.txt

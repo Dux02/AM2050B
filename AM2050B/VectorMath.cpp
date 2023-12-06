@@ -15,17 +15,17 @@ Vector::Vector() : n(0) {
 }
 
 Vector::Vector(int size) : n(size) {
-	v = new double[size];
+	v = new long double[size];
 	for (int i = 0; i < size; i++) v[i] = 0.0;
 }
 
 Vector::Vector(const Vector& V) : n(V.n) {
-	v = new double[V.n];
+	v = new long double[V.n];
 	for (int i = 0; i < V.n; i++) v[i] = V.v[i];
 }
 
-Vector::Vector(double x, double y, double z) : n(3) {
-	v = new double[3];
+Vector::Vector(long double x, long double y, long double z) : n(3) {
+	v = new long double[3];
 	v[0] = x; v[1] = y; v[2] = z;
 }
 
@@ -34,7 +34,7 @@ Vector::~Vector() {
 	delete[] v;	//Free up unused memory
 }
 
-Vector& Vector::operator=(const double value)
+Vector& Vector::operator=(const long double value)
 {
 	for (int i = 0; i < n; i++) v[i] = value;
 	return (*this);
@@ -45,7 +45,7 @@ Vector& Vector::operator=(const Vector& V)
 	//Copy vector if this vector is empty
 	if (n == 0) {
 		n = V.n;
-		v = new double[V.n];
+		v = new long double[V.n];
 	}
 	if (n != V.n) {
 		cerr << "ERROR: Vectors not the same size in Vector operator=(Vector), left: " << n << "right: " << V.n << endl;
@@ -102,17 +102,17 @@ Vector operator-(const Vector& left, const Vector& right)
 }
 
 //Vector operations
-double Dot(const Vector& left, const Vector& right)
+long double Dot(const Vector& left, const Vector& right)
 {
 	if (left.n != right.n) {
 		cerr << "ERROR: Vectors not the same size in Dot(Vector,Vector), left: " << left.n << "right: " << right.n << endl;
 		exit(1);
 	}
-	double Sum = 0.0;
+	long double Sum = 0.0;
 	for (int i = 0; i < left.n; i++) Sum += left.v[i] * right.v[i];
 	return Sum;
 }
-double Norm(const Vector& V)
+long double Norm(const Vector& V)
 {
 	return std::sqrt(Dot(V, V));
 }
@@ -130,17 +130,17 @@ Vector Cross(const Vector& left, const Vector& right)
 }
 
 // Scalar multiplication and division
-Vector operator*(double value, const Vector& V)
+Vector operator*(long double value, const Vector& V)
 {
 	Vector Aux(V.n);
 	for (int i = 0; i < V.n; i++) Aux.v[i] = value * V.v[i];
 	return Aux;
 }
-Vector operator*(const Vector& V, double value)
+Vector operator*(const Vector& V, long double value)
 {
 	return value * V;
 }
-Vector operator/(const Vector& V, double value)
+Vector operator/(const Vector& V, long double value)
 {
 	Vector Aux(V.n);
 	for (int i = 0; i < V.n; i++) Aux.v[i] = V.v[i] / value;
@@ -150,13 +150,13 @@ Vector operator/(const Vector& V, double value)
 
 
 // Create a Vector by using polar coordinates
-Vector VecPolar(double r, double theta, double phi) {
+Vector VecPolar(long double r, long double theta, long double phi) {
 	return Vector(r * cos(theta) * cos(phi), r * cos(theta) * sin(phi), r * sin(theta));
 }
 
-void CalcPolarCoords(const Vector& Vec, double& r, double& theta, double& phi)
+void CalcPolarCoords(const Vector& Vec, long double& r, long double& theta, long double& phi)
 {
-	const double rhoSqr = Vec[0] * Vec[0] + Vec[1] * Vec[1];
+	const long double rhoSqr = Vec[0] * Vec[0] + Vec[1] * Vec[1];
 	r = std::sqrt(rhoSqr + Vec[2] * Vec[2]);
 
 	if (Vec[0] == 0.0 && Vec[1] == 0.0) {
@@ -166,17 +166,25 @@ void CalcPolarCoords(const Vector& Vec, double& r, double& theta, double& phi)
 	}
 	if (phi < 0.0) phi += 2.0 * M_PI;
 
-	const double rho = std::sqrt(rhoSqr);
+	const long double rho = std::sqrt(rhoSqr);
 	if (Vec[2] == 0.0 && rho == 0.0)
 		theta = 0.0;
 	else
 		theta = std::atan2(Vec[2], rho);
 }
 
+void Vector::SetZero() {
+	for (int i = 0; i < n; i++) { v[i] = 0; }
+}
+
 std::ostream& operator<<(std::ostream& os, const Vector& Vec)
 {
 	//int w = os.width();
 	for (int i = 0; i < Vec.n; i++)
-		os << ' ' << Vec[i];
+		if (i == 0) { 
+			os << " " << Vec[i]; }
+		else { 
+			os << ", " << Vec[i]; 
+		}
 	return os;
 }
