@@ -49,7 +49,7 @@ static int StableOrbitTest() {
 	const auto N = 10000;
 
 	PointMass Sun(M, false);
-	PointMass Planet(Vector(R, 0, 0), Vector(0, v, 0), 1);
+	PointMass Planet(Vector3ld(R, 0.0, 0.0), Vector3ld(0.0, v, 0.0), 1);
 	
 	Simulation sim(DT, { Sun, Planet });
 	sim.ShiftInitVelsByHalfStep();
@@ -62,7 +62,7 @@ static int StableOrbitTest() {
 		sim.simpleSave(file);
 		sim.rewind();
 	}
-	std::cout << "Finished backward run. Initial position difference:" << Norm(Vector(R, 0, 0) - sim.objects[1].r) << std::endl;
+	std::cout << "Finished backward run. Initial position difference:" << (Vector3ld(R, 0, 0) - sim.objects[1].r).norm() << std::endl;
 	sim.simpleSave(file);
 	file.close();
 	return 0;
@@ -84,9 +84,9 @@ static int SunEarthMoonSys() {
 	cout << "Comparison of real and stable velocities: " << velE << " " << velcE << endl;
 	cout << "And for moon: " << velM << " " << velcM << endl;
  
-	PointMass Moon(Vector(R + Rem,0, 0), Vector(0, velcE + velcM, 0), M);
-	PointMass Earth(Vector(R, 0, 0), Vector(0, velcE, 0), ME);
-	PointMass Sun(Vector(3), Vector(3), M0, false);
+	PointMass Moon(Vector3ld(R + Rem,0, 0), Vector3ld(0, velcE + velcM, 0), M);
+	PointMass Earth(Vector3ld(R, 0, 0), Vector3ld(0, velcE, 0), ME);
+	PointMass Sun(Vector3ld(3), Vector3ld(3), M0, false);
 	Simulation sim(DT, { Earth, Moon, Sun });
 
 	auto N = 20000;
@@ -113,9 +113,9 @@ static int EfficiencyTest() {
 	std::vector<PointMass> planets;
 
 	for (int i = 1; i <= N; i++) {
-		planets.push_back(PointMass(Vector(R * i, 0, 0), Vector(0, sqrt(G * M / R), 0), M * (N+1-i)));
+		planets.push_back(PointMass(Vector3ld(R * i, 0, 0), Vector3ld(0, sqrt(G * M / R), 0), M * (N+1-i)));
 	}
-	planets.push_back(PointMass(Vector(3), Vector(3), M * N * 10000,false));
+	planets.push_back(PointMass(Vector3ld::Zero(), Vector3ld::Zero(), M * N * 10000, false));
 	Simulation sim(DT, planets);
 	sim.ShiftInitVelsByHalfStep();
 	cout << "Finished setting up Efficiency test in " << stopwatch(timer) << " ms" << endl;
@@ -149,5 +149,5 @@ int main() {
 	std::cout << planetA.m << ", " << planetB.m << ", " << planetC.m << std::endl;
 	*/
 	
-	return StableOrbitTest();
+	return EfficiencyTest();
 }

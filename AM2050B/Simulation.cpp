@@ -9,15 +9,15 @@ using std::endl;
 PointMass::PointMass(double mass, bool canMove)
 {
 	m = mass;
-	r = Vector(3);
-	v = Vector(3);
+	r = Vector3ld::Zero();
+	v = Vector3ld::Zero();
 	mobile = canMove;
 }
 PointMass::PointMass(const PointMass& obj)
 {
 	m = obj.m; r = obj.r; v = obj.v; mobile = obj.mobile;
 }
-PointMass::PointMass(Vector x, Vector vel, double mass, bool canMove)
+PointMass::PointMass(Vector3ld x, Vector3ld vel, double mass, bool canMove)
 {
 	r = x; v = vel; 
 	m = mass; mobile = canMove;
@@ -39,9 +39,9 @@ Simulation::Simulation(long double dt, std::vector<PointMass> objects, long doub
 
 void Simulation::update()
 {
-	std::vector<Vector> accelerations;
+	std::vector<Vector3ld> accelerations;
 	for (auto& obj : objects) {
-		if (!obj.isMobile()) { accelerations.push_back(Vector(3)); continue; }
+		if (!obj.isMobile()) { accelerations.push_back(Vector3ld::Zero()); continue; }
 		accelerations.push_back(calcAccel(obj));
 	}
 	for (int i = 0; i < accelerations.size(); i++) {
@@ -51,12 +51,12 @@ void Simulation::update()
 	T += dt;
 }
 
-Vector Simulation::calcAccel(PointMass object) { 
-	bool found = false; object.a.SetZero(); Vector acceleration(3);
+Vector3ld Simulation::calcAccel(PointMass object) { 
+	bool found = false; object.a.setZero(); auto acceleration = Vector3ld(0,0,0);
 	for (auto& obj : objects) {
 		if (!found && obj == object) { found = true; continue; }
 		//Vector r_ji = obj.r - object.r; //j-> other object, i-> the object we calculate acceleration for	
-		acceleration += (G * obj.m * std::powl (Norm(obj.r - object.r), -3.0)) * (obj.r - object.r);
+		acceleration = (G * obj.m * std::powl ((obj.r - object.r).squaredNorm(), -1.5)) * (obj.r - object.r);
 	}
 	return acceleration;
 }
@@ -69,10 +69,10 @@ void Simulation::ShiftInitVelsByHalfStep() {
 
 void Simulation::rewind()
 {
-	std::vector<Vector> accelerations;
+	std::vector<Vector3ld> accelerations;
 	for (auto& obj : objects) {
 		obj.r -= dt * obj.v; //x_{i} = x_{i+1} - v_{i + 1/2} * dt
-		if (!obj.isMobile()) { accelerations.push_back(Vector(3)); continue; }
+		if (!obj.isMobile()) { accelerations.push_back(Vector3ld::Zero()); continue; }
 		accelerations.push_back(calcAccel(obj));
 	}
 	for (int i = 0; i < accelerations.size(); i++) {
@@ -114,7 +114,7 @@ Ellipsoid::Ellipsoid(const Ellipsoid& obj) : PointMass(obj) {
 	a = obj.a; b = obj.b; c = obj.c;
 }
 
-Ellipsoid::Ellipsoid(Vector x, Vector vel, Vector ellipparams, double mass, bool canMove) : PointMass(x,vel,mass, canMove) {
+Ellipsoid::Ellipsoid(Vector3ld x, Vector3ld vel, Vector ellipparams, double mass, bool canMove) : PointMass(x,vel,mass, canMove) {
 	if (ellipparams.size() != 3) {
 		cerr << "Wrong sized vector" << endl; //TODO
 		exit(1);
@@ -122,8 +122,7 @@ Ellipsoid::Ellipsoid(Vector x, Vector vel, Vector ellipparams, double mass, bool
 	a = ellipparams[0]; b = ellipparams[1]; c = ellipparams[2];
 }
 
-bool Ellipsoid::isInside(Vector pos)
+bool Ellipsoid::isInside(Vector3ld pos)
 {
-	Vector lazy = r - pos; lazy[0] /= a; lazy[1] /= b; lazy[2] /= c;
-	return Norm(lazy) <= 1;
+	return Vector3ld((r - pos)(0) / a, (r - pos)(1) / b, (r - pos)(2) / c).norm() <= 1;
 }
