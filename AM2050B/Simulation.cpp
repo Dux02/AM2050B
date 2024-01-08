@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <cmath>
+
 using std::cerr;
 using std::endl;
 
@@ -23,27 +24,137 @@ PointMass::PointMass(Vector x, Vector vel, double mass, bool canMove)
 	m = mass; mobile = canMove;
 }
 
+ThreadPool::ThreadPool() { Start(); }
 
-Simulation::Simulation(long double dt, long double T0) {
-	objects = std::vector<PointMass>();
-	this->dt = dt; T = T0;
+void ThreadPool::Start() {
+	njobs_pending = 0;
+	const auto number_of_threads = std::thread::hardware_concurrency();
+	for (int i = 0; i < number_of_threads; i++) {
+		threads.emplace_back(std::thread(&ThreadPool::ThreadLoop, this));
+	}
 }
-Simulation::Simulation(const Simulation& sim) {
-	objects = sim.objects;
-	dt = sim.dt; T = sim.T;
+void ThreadPool::ThreadLoop() {
+	while (true) {
+		std::function<void()> job;
+		{
+			std::unique_lock<std::mutex> lock(queue_mutex);
+			mutex_condition.wait(lock, [this] {
+				return !jobs.empty() || should_terminate;
+			});
+			if (should_terminate) {
+				return;
+			}
+
+			job = jobs.front();
+			jobs.pop();
+			//std::cout << "Threadin ova here" << std::endl;
+		}
+		job();
+		if (--njobs_pending == 0) {
+			std::unique_lock<std::mutex> lock(main_mutex);
+			main_condition.notify_one();
+		}
+	}
 }
-Simulation::Simulation(long double dt, std::vector<PointMass> objects, long double T0) {
-	this->dt = dt; this->objects = objects; T = T0;
+void ThreadPool::QueueJob(const std::function<void()>& job) {
+	{
+		njobs_pending++;
+		std::unique_lock<std::mutex> lock(queue_mutex);
+		jobs.push(job);
+	}
+	mutex_condition.notify_one();
 }
+bool ThreadPool::busy() {
+	bool poolbusy;
+	{
+		std::unique_lock<std::mutex> lock(queue_mutex);
+		poolbusy = !jobs.empty();
+	}
+	return poolbusy;
+}
+void ThreadPool::Stop() {
+	{
+		std::unique_lock<std::mutex> lock(queue_mutex);
+		should_terminate = true;
+	}
+	mutex_condition.notify_all();
+	for (std::thread& active_thread : threads) {
+		active_thread.join();
+	}
+	threads.clear();
+}
+	
+void ThreadPool::waitUntilCompleted() {
+	std::unique_lock<std::mutex> lock(main_mutex);
+	main_condition.wait(lock, [this] {return njobs_pending == 0; });
+}
+
+
+Simulation::Simulation(long double dt, long double T0) : dt(dt), objects(std::vector<PointMass>()), T(T0) {}
+Simulation::Simulation(const Simulation& sim) : dt(sim.dt), objects(sim.objects), T(sim.T) {}
+Simulation::Simulation(long double dt, std::vector<PointMass> objects, long double T0) : dt(dt), objects(objects), T(T0) {}
+
+Simulation::~Simulation() { workers.Stop(); }
+
+/*
+void Simulation::init() {
+	numThreadsFinished = 0;
+	for (int i = 0; i < numThreads; ++i) {
+		threads.emplace_back([this, i]() {
+			while (true) {
+				// Wait for new task
+				//std::unique_lock<std::mutex> lock(accelMutex);
+				accelReady.wait(lock, [this]() { return numThreadsFinished < numThreads || terminate; });
+
+				if (terminate) {
+					break;  // Exit the thread if termination is signaled
+				}
+
+				// Calculate accelerations for a subset of objects
+				for (size_t j = i; j < this->objects.size(); j += numThreads) {
+					Vector accel = calcAccel(this->objects[j]);
+
+					// Make sure to update acceleration atomically to avoid race conditions
+					//std::lock_guard<std::mutex> accelLock(accelMutex);
+					accelerations[j] = accel;
+				}
+
+				// Notify that this thread has finished
+				++numThreadsFinished;
+				//lock.unlock();
+				accelReady.notify_one();
+			}
+		});
+	}
+
+	accelerations.resize(objects.size());
+}
+*/
 
 
 void Simulation::update()
 {
 	std::vector<Vector> accelerations;
+	/* Multi threading LMAO - This is where we use the treads
+	std::mutex reality_land;
+	for (auto& obj : objects) {
+		if (!obj.isMobile()) { std::unique_lock<std::mutex> fake_land(reality_land); 
+		accelerations.push_back(Vector(3)); continue; }
+		workers.QueueJob([this, obj, &accelerations, &reality_land] {
+			std::unique_lock<std::mutex> fake_land(reality_land);
+			accelerations.push_back(calcAccel(obj)); //Make sure there are no data races to acceleration
+			//std::cout << accelerations.size() << std::endl;
+		});
+		
+	}
+	workers.waitUntilCompleted(); //And then wait until all the workers are completed	
+	//std::cout << "We waited until completed" << std::endl;
+	//As long as threads complete before here we are good to go! */
+	///* Single threaded
 	for (auto& obj : objects) {
 		if (!obj.isMobile()) { accelerations.push_back(Vector(3)); continue; }
 		accelerations.push_back(calcAccel(obj));
-	}
+	} //*/
 	for (int i = 0; i < accelerations.size(); i++) {
 		objects[i].v += accelerations[i] * dt;
 		objects[i].r += objects[i].v * dt;
@@ -51,14 +162,30 @@ void Simulation::update()
 	T += dt;
 }
 
+
+
+void Simulation::advancedUpdate() {
+	return;
+}
+
 Vector Simulation::calcAccel(PointMass object) { 
-	bool found = false; object.a.SetZero(); Vector acceleration(3);
+	bool found = false; object.a.SetZero();
 	for (auto& obj : objects) {
 		if (!found && obj == object) { found = true; continue; }
-		//Vector r_ji = obj.r - object.r; //j-> other object, i-> the object we calculate acceleration for	
-		acceleration += (G * obj.m * std::powl (Norm(obj.r - object.r), -3.0)) * (obj.r - object.r);
+		object.a += (G * obj.m * std::powl (Norm(obj.r - object.r), -3.0)) * (obj.r - object.r);
 	}
-	return acceleration;
+	return object.a;
+}
+
+long double Simulation::calcTimeStep(PointMass object)
+{
+	bool found = false; long double min = dt / dtcoeff;
+	for (auto& obj : objects) {
+		if (!found && obj == object) { found = true; continue; }
+		long double tim = Norm(obj.r - object.r) / Norm(obj.v - object.v);
+		if (tim < min) { min = tim; }
+	}
+	return min*dtcoeff;
 }
 
 void Simulation::ShiftInitVelsByHalfStep() {

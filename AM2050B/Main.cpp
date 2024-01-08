@@ -13,6 +13,29 @@ using std::cout; using std::endl;
 const auto M0 = 3.955 * std::powl(10, 30); // Mass of the sun (kg)
 const auto ME = 5.972 * std::powl(10, 24); // Mass of the earth (kg)
 
+struct planetstats {
+	long double mass;			//kg
+	long double period;			//days
+	long double distfromsun;	//m
+	long double orbitalvel;		//m/s
+	std::string name;
+}; 
+
+const planetstats PLANETS[11] = {
+{3.955e30, 0, 0, 0, "Sun"},
+{0.33e24, 88.0, 57.9e9, 47400, "Mercury"},
+{4.87e24, 224.7, 108.2e9, 35000, "Venus"},
+{5.97e24, 365.2, 149.6e9, 29800, "Earth"},
+{0.073e24, 27.3, 0.384e9, 1000, "Moon"},
+{0.642e24, 687, 228e9, 24100, "Mars"},
+{1898e24, 4331, 778.5e9, 13100, "Jupiter"},
+{568e24, 10747, 1432e9, 9700, "Saturn"},
+{86.8e24, 30589, 2867e9, 6800, "Uranus"},
+{102e24, 59800, 4515e9, 5400, "Neptune"},
+{0.0130e24, 90560, 5906.4e9, 4700, "Pluto"},
+};
+const int SECS_IN_DAY = 24 * 60 * 60;
+
 //Seed random generator
 std::random_device rd;
 std::mt19937 mt(rd());
@@ -38,8 +61,11 @@ static auto stopwatch(std::chrono::steady_clock::time_point &timer) {
 	timer = std::chrono::steady_clock::now();
 	return str;
 }
-
-static int StableOrbitTest() {
+/// <summary>
+/// This checks if the integrator is indeed time symmetric by going forward and backward in time and comparing
+/// the positions
+/// </summary>
+static int StableOrbitTest() { 
 	auto file = openDataFile("sot ",".txt");
 	
 	const long double v = 10;
@@ -70,7 +96,7 @@ static int StableOrbitTest() {
 
 static int SunEarthMoonSys() {
 	auto file = openDataFile("sems ",".txt");
-	const long double DT = 3600;
+	const long double DT = 360;
 	const long double R = 149.60 * std::powl(10.0, 9);
 	const long double Rem = 384400000.0;
 	const long double M = 7.347 * std::powl(10, 22);
@@ -128,13 +154,48 @@ static int EfficiencyTest() {
 		}
 	}
 
-	cout << "Finished effieciency test in " << std::chrono::duration_cast<std::chrono::seconds>
+	cout << "Finished efficiency test in " << std::chrono::duration_cast<std::chrono::seconds>
 		(prev - std::chrono::steady_clock::now()).count() << " seconds" << endl;
 	file.close();
 	return 0;
 }
 
 static int CollisionRewind() {
+	return 0;
+}
+
+static int SolarSys() {
+	auto file = openDataFile("ssys ", ".txt");
+	const long double DT = 10;
+
+	//Need to use calculated stable velocities to ensure proper orbit
+	//const long double velcE = std::sqrt(G * M0 / R);
+	//const long double velcM = std::sqrt(G * ME / Rem);
+
+	PointMass Sun(Vector(3), Vector(3), PLANETS[0].mass, false);
+	std::vector<PointMass> solarsystem = { Sun };
+	for (int i = 1; i < 11; i++) {
+		if (PLANETS[i].name == "Moon") {
+			solarsystem.push_back(PointMass(Vector(PLANETS[i - 1].distfromsun, PLANETS[i].distfromsun, 0),
+				Vector(PLANETS[i].orbitalvel, PLANETS[i - 1].orbitalvel, 0), PLANETS[i].mass, true));
+		}
+		solarsystem.push_back(PointMass(Vector(PLANETS[i].distfromsun, 0, 0), 
+			Vector(0, PLANETS[i].orbitalvel, 0), PLANETS[i].mass, true));
+	}
+	cout << solarsystem.size() << endl;
+	Simulation sim(DT, solarsystem);
+	cout << "Starting Solar System simulation run" << endl;
+
+	auto N = 20000;
+	for (int i = 0; i < N*100; i++) {
+		sim.simpleSave(file);
+		sim.update();
+		if (i % N == N - 1) {
+			cout << "Finished " << ceil(i / N) << "% of simulation" << endl;
+		}
+	}
+	file.close();
+	cout << "Finished Solar System simulation run" << endl;
 	return 0;
 }
 
@@ -149,5 +210,5 @@ int main() {
 	std::cout << planetA.m << ", " << planetB.m << ", " << planetC.m << std::endl;
 	*/
 	
-	return StableOrbitTest();
+	return EfficiencyTest();
 }

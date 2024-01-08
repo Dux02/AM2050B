@@ -20,27 +20,29 @@ T = 20  # seconds
 N = 20000
 DT = T/N
 funny = False
-for i in range(9000,N,10): 
+for i in range(0,N,40): 
     #'''
     if (not funny and i > N/2):
         funny = True
         print("WE'RE GOING BACK! BACK TO THE FUTURE!")
     #'''
-    #i = N
-    K = 100
+    i = N
+    K = N
     plt.figure(figsize= (6,6))
     colors = ["mediumseagreen","cornflowerblue", "yellow","salmon","hotpink", "deepskyblue","orange"]
+    planets = ["Sun","Mercury","Venus","Earth","Moon","Mars","Jupiter"]
     for j in range(numplanets):
-        if (j >= len(colors) or j >= 2):
-            break
-        plt.plot(data[3*j][max(0,i-K):i], data[3*j+1][max(0,i-K):i], color=colors[j])
+        if (j >= len(colors) or j == 0):
+            continue
+        plt.plot(data[3*j][max(0,i-K):i], data[3*j+1][max(0,i-K):i], color=colors[j],label=planets[j])
         
-    #plt.plot(data[3][0],data[4][0],'r+')
+    #plt.plot(data[0][0],data[1][0],'r+')
     #plt.plot(data[6][:i], data[7][:i], "y")
     plt.xlabel("X")
     plt.ylabel("Y")
     plt.title("Positions in XY plane for all time")
+    plt.legend()
     plt.show()
-    #break
+    break
 
     #time.sleep(DT)
