@@ -45,12 +45,37 @@ class Vector {
 		friend Vector VecPolar(long double r, long double theta, long double phi);	//Make a vector from polar coordinates. Theta is angle w/ z-axis
 		friend void CalcPolarCoords(const Vector& Vec, long double& r, long double& theta, long double& phi); //Calculate polar coordinates. Uses pointers
 		void SetZero();
+		
 
 		// Output
 		friend std::ostream& operator << (std::ostream& os, const Vector& Vec);
+
+		friend class Matrix3x3;
 
 private:
 	int n;			// Dimension
 	long double* v;		// Vector v[n]
 };
 
+class Matrix3x3 {
+public:
+	long double** m;
+	Matrix3x3();		//Zero-matrix
+	Matrix3x3(long double entries[3][3]);
+	Matrix3x3(long double entries[9]);
+
+	~Matrix3x3();
+
+	// Coordinate access
+	long double* operator [] (int i) const { return m[i]; }
+
+	friend Matrix3x3 operator * (long double scalar, const Matrix3x3& m);
+	friend Matrix3x3 operator * (const Matrix3x3& left, const Matrix3x3& right);
+	friend Vector operator * (const Matrix3x3& m, const Vector& v);
+
+	friend std::ostream& operator << (std::ostream& os, const Matrix3x3& mat);
+};
+Matrix3x3 RotationMatrix(long double angle, Vector axis);
+Matrix3x3 XRotation(long double angle);
+Matrix3x3 YRotation(long double angle);
+Matrix3x3 ZRotation(long double angle);

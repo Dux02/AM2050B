@@ -1,4 +1,5 @@
 #pragma once
+#define _USE_MATH_DEFINES
 #include "VectorMath.h"
 #include <vector>
 #include <thread>
@@ -6,9 +7,22 @@
 #include <condition_variable>
 #include <functional>
 #include <queue>
+#include <string>
+#include <cmath>
+#include <variant>
 #define G 0.000000000066743 //Gravitational constant, 10^-11
 constexpr long double dtcoeff = 12 * 3600;
 //0.000000000066743
+
+struct keplerinfo {
+	std::string name;
+	long double da;		//semi major axis in AU
+	long double de;
+	long double di;		//in degrees
+	long double dOmega;	//in degrees
+	long double domega;	//in degrees
+	long double dL;		//in degrees
+};
 
 class PointMass {
 public:
@@ -20,13 +34,16 @@ public:
 	Vector v;	//Note for leapfrog model, this is v_{i-1/2} 
 	Vector a = Vector(3);	//Simple workaround to avoid needless initalizations and destructions
 	double m;
+	bool isKepler() const { return keplerian; }
 	//long double dt_i;		//Time spent since start of an era (!!)
 
 	friend bool operator==(const PointMass& left, const PointMass& right) 
 		{ return (left.mobile == right.mobile && left.m == right.m && left.r == right.r && left.v == right.v); }
 	bool isMobile() const { return mobile; }
+	void update(long double dt) { return; }
 protected:
 	bool mobile;
+	bool keplerian;
 };
 
 class Ellipsoid : PointMass {
@@ -42,6 +59,21 @@ public:
 	//friend bool isInside(Ellipsoid obj, PointMass otherobj);
 
 	long double a; long double b; long double c;
+};
+
+class KeplerObject : PointMass {
+public:
+	KeplerObject(keplerinfo data, double m, long double m0, long double T);
+	long double e;				// Eccentricity
+	long double semmajaxs;
+	Matrix3x3 RotMatrix;
+	long double T;
+	//long double L;				// Mean Longitude
+	long double M;
+
+	long double M0;
+
+	void update(long double dt);
 };
 
 class ThreadPool {
@@ -70,10 +102,10 @@ class Simulation {
 public:
 	Simulation (long double dt, long double T0 = 0.0);
 	Simulation (const Simulation& sim);
-	Simulation (long double dt, std::vector<PointMass> objects, long double T0 = 0.0);
+	Simulation (long double dt, std::vector<std::shared_ptr<PointMass>> objects, long double T0 = 0.0);
 	~Simulation();
 
-	std::vector<PointMass> objects;
+	std::vector<std::shared_ptr<PointMass>> objects;
 	void update();
 	void advancedUpdate(); //Uses the Block step era method
 	void rewind();
@@ -87,6 +119,5 @@ private:
 	//void init();
 	long double dt;
 	long double T;
-	ThreadPool workers; //This is the pool of threads to do tasks!!
 	
 };

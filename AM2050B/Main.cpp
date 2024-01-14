@@ -10,8 +10,9 @@
 #include "Simulation.h"
 using std::cout; using std::endl;
 
-const auto M0 = 3.955 * std::powl(10, 30); // Mass of the sun (kg)
-const auto ME = 5.972 * std::powl(10, 24); // Mass of the earth (kg)
+const auto M0 = 1.989e30;	// Mass of the sun (kg)
+const auto ME = 5.972e24;	// Mass of the earth (kg)
+const long double AU = 149597870700;		//1 AU in meters
 
 struct planetstats {
 	long double mass;			//kg
@@ -20,6 +21,27 @@ struct planetstats {
 	long double orbitalvel;		//m/s
 	std::string name;
 }; 
+
+const keplerinfo PLANETS_KEP[9] = {
+{"Mercury", 0.38709893, 0.20563069, 7.00487, 48.33167, 77.45645, 252.25084},
+{"Venus", 0.72333199,    0.00677323,    3.39471    ,76.68069,    131.53298,    181.97973},
+{"Earth",    1.00000011,    0.01671022,    0.00005,    -11.26064,    102.94719,    100.46435},
+{"Mars",    1.52366231,    0.09341233,    1.85061,    49.57854,    336.04084,    355.45332},
+{"Jupiter",    5.20336301,    0.04839266,    1.30530,    100.55615,    14.75385,    34.40438},
+{"Saturn",    9.53707032,    0.05415060,    2.48446,    113.71504,    92.43194,    49.94432},
+{"Uranus",    19.19126393,    0.04716771,    0.76986,    74.22988,    170.96424,    313.23218},
+{"Neptune",    30.06896348,    0.00858587,    1.76917,    131.72169,    44.97135,    304.88003},
+{"Pluto",    39.48168677,    0.24880766,    17.14175,    110.30347,    224.06676,    238.92881}
+};
+/*const planetstats_cy PLANETS[9] = {{"Mercury",    0.00000066,    0.00002527,    -23.51,    -446.30,    573.57,    538101628.29},{
+"Venus",    0.00000092,    -0.00004938,    -2.86,    -996.89,    -108.80,    210664136.06},{
+"Earth",    -0.00000005,    -0.00003804,    -46.94,    -18228.25,    1198.28,    129597740.63},{
+"Mars",    -0.00007221,    0.00011902,    -25.47,    -1020.19,    1560.78,    68905103.78},{
+"Jupiter",    0.00060737,    -0.00012880,    -4.15,    1217.17,    839.93,    10925078.35},{
+"Saturn",    -0.00301530,    -0.00036762,    6.11 - 1591.05,    -1948.89,    4401052.95},{
+"Uranus",    0.00152025,    -0.00019150,    -2.09,    -1681.40,    1312.56,    1542547.79},{
+"Neptune",    -0.00125196,    0.0000251,    -3.64, -151.25,    -844.43,    786449.21},{
+"Pluto",    -0.00076912,    0.00006465,    11.07,    -37.33,    -132.25,    522747.90}, };*/
 
 const planetstats PLANETS[11] = {
 {3.955e30, 0, 0, 0, "Sun"},
@@ -35,7 +57,48 @@ const planetstats PLANETS[11] = {
 {0.0130e24, 90560, 5906.4e9, 4700, "Pluto"},
 };
 const int SECS_IN_DAY = 24 * 60 * 60;
+/*
+PointMass KeplerInitializer(keplerinfo data, planetstats planet, long double M_sun) {
+	//Step 0. Set everything to radians
+	auto L = data.dL * M_PI / 180.0; auto i = data.di * M_PI / 180.0;
+	auto Omega = data.dOmega * M_PI / 180.0; auto omega = data.domega * M_PI / 180.0;
+	//And get the other data types too:
+	auto e = data.de; auto a = data.da * AU;
 
+	//Step 1. From Mean Longitude (L) to true anomaly (nu)
+	//1.1 Find mean anomaly (M)
+	auto M = L - Omega - omega;
+	//1.2 Find eccentric anomaly (E)
+	auto E = KeplerSolver(e, M);
+	//1.3 Hence find true anomaly
+	auto nu = 2 * std::atanl(std::sqrtl((1 + e) / (1 - e)) * std::tanl(E / 2.0));
+	
+	//Step 2. From Semi-major axis (a) to Orbital angular momentum (h)
+	auto mu = G * (planet.mass + M_sun);		//Standard gravitational parameter
+	auto h = std::sqrtl( a * mu * (1 - e * e));
+
+	//Step 3. From these parameters determine initial positions and velocities:
+	auto r = a * (1 - e * std::cosl(E));
+
+	Vector Position(3);		//In Orbital reference frame
+	//Position[0] = (h * h * std::cosl(nu)) / (mu * (1 + e * std::cosl(nu)));
+	//Position[1] = Position[0] * std::tanl(nu);
+	Position[0] = r * std::cosl(nu); Position[1] = r * std::sinl(nu);
+	Vector Velocity(3);
+	//Velocity[0] = -mu * std::sinl(nu) / h;
+	//Velocity[1] = mu * (e + std::cosl(mu)) / h;
+	Velocity[0] = -std::sqrtl(mu * a) * std::sinl(E) / r;
+	Velocity[1] = std::sqrtl(mu * a * (1 - e * e)) * std::cosl(E) / r;
+
+	cout << "FOR THE PLANET " << planet.name << "\n";
+	//cout << "Calculated velocity: " << Norm(Velocity) << " v. Real vel: " << planet.orbitalvel << endl;
+	cout << "MANLET ALERT? " << std::round(100 * (Norm(Velocity) / planet.orbitalvel - 1)) << "% \n";
+
+	//Step 4. Rotate from orbital reference frame to Earth-orbital reference frame (standard)
+	Matrix3x3 RotMatrix = XRotation(-Omega) * YRotation(-i) * ZRotation(-omega);
+	return PointMass(RotMatrix * Position, RotMatrix * Velocity, planet.mass);
+}
+*/
 //Seed random generator
 std::random_device rd;
 std::mt19937 mt(rd());
@@ -61,6 +124,9 @@ static auto stopwatch(std::chrono::steady_clock::time_point &timer) {
 	timer = std::chrono::steady_clock::now();
 	return str;
 }
+
+
+
 /// <summary>
 /// This checks if the integrator is indeed time symmetric by going forward and backward in time and comparing
 /// the positions
@@ -74,8 +140,8 @@ static int StableOrbitTest() {
 	const auto DT = 1; //Note DT = 10 is still stable.
 	const auto N = 10000;
 
-	PointMass Sun(M, false);
-	PointMass Planet(Vector(R, 0, 0), Vector(0, v, 0), 1);
+	auto Sun = std::make_shared<PointMass>(M, false);
+	auto Planet = std::make_shared<PointMass>(Vector(R, 0, 0), Vector(0, v, 0), 1);
 	
 	Simulation sim(DT, { Sun, Planet });
 	sim.ShiftInitVelsByHalfStep();
@@ -88,15 +154,16 @@ static int StableOrbitTest() {
 		sim.simpleSave(file);
 		sim.rewind();
 	}
-	std::cout << "Finished backward run. Initial position difference:" << Norm(Vector(R, 0, 0) - sim.objects[1].r) << std::endl;
+	std::cout << "Finished backward run. Initial position difference:" << Norm(Vector(R, 0, 0) - sim.objects[1]->r) << std::endl;
 	sim.simpleSave(file);
 	file.close();
 	return 0;
 }
 
+/*
 static int SunEarthMoonSys() {
 	auto file = openDataFile("sems ",".txt");
-	const long double DT = 360;
+	const long double DT = 3600;
 	const long double R = 149.60 * std::powl(10.0, 9);
 	const long double Rem = 384400000.0;
 	const long double M = 7.347 * std::powl(10, 22);
@@ -113,7 +180,7 @@ static int SunEarthMoonSys() {
 	PointMass Moon(Vector(R + Rem,0, 0), Vector(0, velcE + velcM, 0), M);
 	PointMass Earth(Vector(R, 0, 0), Vector(0, velcE, 0), ME);
 	PointMass Sun(Vector(3), Vector(3), M0, false);
-	Simulation sim(DT, { Earth, Moon, Sun });
+	Simulation sim(DT, { &Sun, &Earth, &Moon});
 
 	auto N = 20000;
 	for (int i = 0; i < N; i++) {
@@ -136,18 +203,18 @@ static int EfficiencyTest() {
 	auto timer = std::chrono::steady_clock::now();
 	auto prev = std::chrono::steady_clock::now();
 
-	std::vector<PointMass> planets;
+	std::vector<PointMass *> planets;
 
 	for (int i = 1; i <= N; i++) {
-		planets.push_back(PointMass(Vector(R * i, 0, 0), Vector(0, sqrt(G * M / R), 0), M * (N+1-i)));
+		planets.push_back(&PointMass(Vector(R * i, 0, 0), Vector(0, sqrt(G * M / R), 0), M * (N+1-i)));
 	}
-	planets.push_back(PointMass(Vector(3), Vector(3), M * N * 10000,false));
+	planets.push_back(&PointMass(Vector(3), Vector(3), M * N * 10000,false));
 	Simulation sim(DT, planets);
 	sim.ShiftInitVelsByHalfStep();
 	cout << "Finished setting up Efficiency test in " << stopwatch(timer) << " ms" << endl;
 
 	for (int i = 0; i < T; i++) {
-		sim.simpleSave(file);
+		//sim.simpleSave(file);
 		sim.update();
 		if (i % percent == (percent - 1)) {
 			cout << "Looped through " << ceil(100 * i / T) << "% in " << stopwatch(timer) << " ms" << endl;
@@ -173,13 +240,13 @@ static int SolarSys() {
 	//const long double velcM = std::sqrt(G * ME / Rem);
 
 	PointMass Sun(Vector(3), Vector(3), PLANETS[0].mass, false);
-	std::vector<PointMass> solarsystem = { Sun };
+	std::vector<PointMass*> solarsystem = { &Sun };
 	for (int i = 1; i < 11; i++) {
 		if (PLANETS[i].name == "Moon") {
-			solarsystem.push_back(PointMass(Vector(PLANETS[i - 1].distfromsun, PLANETS[i].distfromsun, 0),
+			solarsystem.push_back(&PointMass(Vector(PLANETS[i - 1].distfromsun, PLANETS[i].distfromsun, 0),
 				Vector(PLANETS[i].orbitalvel, PLANETS[i - 1].orbitalvel, 0), PLANETS[i].mass, true));
 		}
-		solarsystem.push_back(PointMass(Vector(PLANETS[i].distfromsun, 0, 0), 
+		solarsystem.push_back(&PointMass(Vector(PLANETS[i].distfromsun, 0, 0), 
 			Vector(0, PLANETS[i].orbitalvel, 0), PLANETS[i].mass, true));
 	}
 	cout << solarsystem.size() << endl;
@@ -198,7 +265,54 @@ static int SolarSys() {
 	cout << "Finished Solar System simulation run" << endl;
 	return 0;
 }
+*/
+static int KeplerSunEarth() {
+	auto file = openDataFile("kse ", ".txt");
+	const long double DT = 3600;
+	auto Sun = std::make_shared<PointMass>(Vector(3), Vector(3), M0, false);
+	std::vector<std::shared_ptr<PointMass>> solarsys = { Sun }; 
+	solarsys.push_back(std::make_shared<KeplerObject>(PLANETS_KEP[2], PLANETS[3].mass, M0, PLANETS[3].period));
+	Simulation sim(DT, solarsys);
+	auto N = 20000;
+	for (int i = 0; i < N; i++) {
+		sim.simpleSave(file);
+		sim.update();
+	}
+	file.close();
+	cout << "Finished Sun-Earth simulation with Kepler initializer" << endl;
+	return 0;
+}
+/*
+static int KeplerSolarSys() {
+	//auto file = openDataFile("kss ", ".txt");
+	const long double DT = 3600;
+	PointMass Sun(Vector(3), Vector(3), M0, false);
+	std::vector<PointMass> solarsystem = { Sun };
+	auto diff = 1;
+	auto timer = std::chrono::steady_clock::now();
 
+	for (int i = 1; i < 11; i++) {
+		if (PLANETS[i].name == "Moon") {
+			diff++; continue;
+		}
+		solarsystem.push_back(KeplerObject(PLANETS_KEP[i - diff], PLANETS[i].mass, M0, PLANETS[i].period));
+	}
+	cout << "Initialized Kepler system in " << stopwatch(timer) << " ms, for " << solarsystem.size() - 1 << " planets\n";
+	Simulation sim(DT, solarsystem);
+
+	auto N = 200;
+	for (int i = 0; i < 100 * N; i++) {
+		//sim.simpleSave(file);
+		sim.update();
+		if (i % N == N - 1) {
+			cout << "Finished " << ceil(i / N) << "% of simulation" << endl;
+		}
+	}
+	//file.close();
+	cout << "Finished Solar System simulation run" << endl;
+	return 0;
+}
+*/
 int main() {
 	
 	//*/
@@ -209,6 +323,5 @@ int main() {
 	
 	std::cout << planetA.m << ", " << planetB.m << ", " << planetC.m << std::endl;
 	*/
-	
-	return EfficiencyTest();
+	return StableOrbitTest();	
 }
