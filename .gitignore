@@ -13,3 +13,4 @@
 /AM2050B/eigen-3.4.0
 *.cpp
 /Testing Corner/x64/Debug
+/AM2050B/zlib-1.3

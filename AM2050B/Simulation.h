@@ -12,9 +12,10 @@
 #include <variant>
 #define G 0.000000000066743 //Gravitational constant, 10^-11
 constexpr long double dtcoeff = 12 * 3600;
+const long double AU = 149597870700;		//1 AU in meters
 //0.000000000066743
 
-struct keplerinfo {
+struct rawkeplerdata {
 	std::string name;
 	long double da;		//semi major axis in AU
 	long double de;
@@ -23,24 +24,39 @@ struct keplerinfo {
 	long double domega;	//in degrees
 	long double dL;		//in degrees
 };
+struct keplerinfo {
+	long double e;					// Eccentricity
+	long double semmajaxs;			// Semi-major axis
+	Matrix3x3 RotMatrix;
+	long double T;					// Orbital period
+	//long double L;				// Mean Longitude
+	long double M;					// Mean Anomaly
+	long double E;
+	long double M0;					// Mass of center of orbit (e.g. Sun)
+};
+
+keplerinfo convertData(rawkeplerdata rkd, long double T, long double M0);
 
 class PointMass {
 public:
-	PointMass(double mass, bool canMove = true);
+	PointMass(long double mass, bool canMove = true);
 	PointMass(const PointMass& obj);
-	PointMass(Vector x, Vector vel, double mass, bool canMove = true);
+	PointMass(Vector x, Vector vel, long double mass, bool canMove = true);
+	PointMass(keplerinfo* ki, long double mass);
 
 	Vector r;	
 	Vector v;	//Note for leapfrog model, this is v_{i-1/2} 
 	Vector a = Vector(3);	//Simple workaround to avoid needless initalizations and destructions
-	double m;
+	long double m;
 	bool isKepler() const { return keplerian; }
 	//long double dt_i;		//Time spent since start of an era (!!)
 
 	friend bool operator==(const PointMass& left, const PointMass& right) 
 		{ return (left.mobile == right.mobile && left.m == right.m && left.r == right.r && left.v == right.v); }
 	bool isMobile() const { return mobile; }
-	void update(long double dt) { return; }
+	void update(long double dt);
+
+	keplerinfo* kepinfo;
 protected:
 	bool mobile;
 	bool keplerian;
@@ -61,20 +77,6 @@ public:
 	long double a; long double b; long double c;
 };
 
-class KeplerObject : PointMass {
-public:
-	KeplerObject(keplerinfo data, double m, long double m0, long double T);
-	long double e;				// Eccentricity
-	long double semmajaxs;
-	Matrix3x3 RotMatrix;
-	long double T;
-	//long double L;				// Mean Longitude
-	long double M;
-
-	long double M0;
-
-	void update(long double dt);
-};
 
 class ThreadPool {
 public:
@@ -102,10 +104,10 @@ class Simulation {
 public:
 	Simulation (long double dt, long double T0 = 0.0);
 	Simulation (const Simulation& sim);
-	Simulation (long double dt, std::vector<std::shared_ptr<PointMass>> objects, long double T0 = 0.0);
+	Simulation (long double dt, std::vector<PointMass> objects, long double T0 = 0.0);
 	~Simulation();
 
-	std::vector<std::shared_ptr<PointMass>> objects;
+	std::vector<PointMass> objects;
 	void update();
 	void advancedUpdate(); //Uses the Block step era method
 	void rewind();

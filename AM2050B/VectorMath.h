@@ -66,6 +66,8 @@ public:
 
 	~Matrix3x3();
 
+	Matrix3x3& operator=(const Matrix3x3& mat);
+
 	// Coordinate access
 	long double* operator [] (int i) const { return m[i]; }
 

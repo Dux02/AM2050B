@@ -12,7 +12,6 @@ using std::cout; using std::endl;
 
 const auto M0 = 1.989e30;	// Mass of the sun (kg)
 const auto ME = 5.972e24;	// Mass of the earth (kg)
-const long double AU = 149597870700;		//1 AU in meters
 
 struct planetstats {
 	long double mass;			//kg
@@ -22,7 +21,7 @@ struct planetstats {
 	std::string name;
 }; 
 
-const keplerinfo PLANETS_KEP[9] = {
+const rawkeplerdata PLANETS_KEP[9] = {
 {"Mercury", 0.38709893, 0.20563069, 7.00487, 48.33167, 77.45645, 252.25084},
 {"Venus", 0.72333199,    0.00677323,    3.39471    ,76.68069,    131.53298,    181.97973},
 {"Earth",    1.00000011,    0.01671022,    0.00005,    -11.26064,    102.94719,    100.46435},
@@ -140,8 +139,8 @@ static int StableOrbitTest() {
 	const auto DT = 1; //Note DT = 10 is still stable.
 	const auto N = 10000;
 
-	auto Sun = std::make_shared<PointMass>(M, false);
-	auto Planet = std::make_shared<PointMass>(Vector(R, 0, 0), Vector(0, v, 0), 1);
+	PointMass Sun(M, false);
+	PointMass Planet(Vector(R, 0, 0), Vector(0, v, 0), 1);
 	
 	Simulation sim(DT, { Sun, Planet });
 	sim.ShiftInitVelsByHalfStep();
@@ -154,7 +153,7 @@ static int StableOrbitTest() {
 		sim.simpleSave(file);
 		sim.rewind();
 	}
-	std::cout << "Finished backward run. Initial position difference:" << Norm(Vector(R, 0, 0) - sim.objects[1]->r) << std::endl;
+	std::cout << "Finished backward run. Initial position difference:" << Norm(Vector(R, 0, 0) - sim.objects[1].r) << std::endl;
 	sim.simpleSave(file);
 	file.close();
 	return 0;
@@ -267,52 +266,63 @@ static int SolarSys() {
 }
 */
 static int KeplerSunEarth() {
+	auto extra = std::ofstream("cringe.txt");
 	auto file = openDataFile("kse ", ".txt");
+
 	const long double DT = 3600;
-	auto Sun = std::make_shared<PointMass>(Vector(3), Vector(3), M0, false);
-	std::vector<std::shared_ptr<PointMass>> solarsys = { Sun }; 
-	solarsys.push_back(std::make_shared<KeplerObject>(PLANETS_KEP[2], PLANETS[3].mass, M0, PLANETS[3].period));
-	Simulation sim(DT, solarsys);
+	PointMass Sun(Vector(3), Vector(3), M0, false);
+	keplerinfo* EarthInfo = new keplerinfo(convertData(PLANETS_KEP[2], PLANETS[3].period * SECS_IN_DAY,M0));
+	EarthInfo->e = 0.3;
+	cout << "By the by, this is our initial mean anomaly " << EarthInfo->M << endl;
+	//EarthInfo->M += M_PI;
+	PointMass Earth(EarthInfo, PLANETS[3].mass);
+	Simulation sim(DT, { Sun, Earth });
 	auto N = 20000;
 	for (int i = 0; i < N; i++) {
 		sim.simpleSave(file);
+		extra << EarthInfo->M << ", " << EarthInfo->E << "\n";
 		sim.update();
 	}
+	cout << "The simulation end time is " << sim.getTime() << "\n";
 	file.close();
+	extra.close();
 	cout << "Finished Sun-Earth simulation with Kepler initializer" << endl;
 	return 0;
 }
-/*
+
 static int KeplerSolarSys() {
-	//auto file = openDataFile("kss ", ".txt");
-	const long double DT = 3600;
+	auto file = std::ofstream("data/kss FINAL.txt");
+	const long double DT = 36000;
 	PointMass Sun(Vector(3), Vector(3), M0, false);
 	std::vector<PointMass> solarsystem = { Sun };
 	auto diff = 1;
 	auto timer = std::chrono::steady_clock::now();
+	auto omega = std::chrono::steady_clock::now();
 
 	for (int i = 1; i < 11; i++) {
 		if (PLANETS[i].name == "Moon") {
 			diff++; continue;
 		}
-		solarsystem.push_back(KeplerObject(PLANETS_KEP[i - diff], PLANETS[i].mass, M0, PLANETS[i].period));
+
+		solarsystem.push_back(PointMass(new keplerinfo(convertData(PLANETS_KEP[i - diff], PLANETS[i].period * SECS_IN_DAY, M0)), PLANETS[i].mass));
+		
 	}
 	cout << "Initialized Kepler system in " << stopwatch(timer) << " ms, for " << solarsystem.size() - 1 << " planets\n";
 	Simulation sim(DT, solarsystem);
 
-	auto N = 200;
+	auto N = 20000;
 	for (int i = 0; i < 100 * N; i++) {
-		//sim.simpleSave(file);
+		sim.simpleSave(file);
 		sim.update();
 		if (i % N == N - 1) {
-			cout << "Finished " << ceil(i / N) << "% of simulation" << endl;
+			cout << "Finished " << ceil(i / N) << "% of simulation in " << stopwatch(timer) << " ms\n";
 		}
 	}
-	//file.close();
-	cout << "Finished Solar System simulation run" << endl;
+	file.close();
+	cout << "Finished Solar System simulation run in " << stopwatch(omega) / 1000 << " s" << endl;
 	return 0;
 }
-*/
+
 int main() {
 	
 	//*/
@@ -323,5 +333,17 @@ int main() {
 	
 	std::cout << planetA.m << ", " << planetB.m << ", " << planetC.m << std::endl;
 	*/
-	return StableOrbitTest();	
+	return KeplerSolarSys();
+	/*
+	auto test = std::ofstream("rotmat.txt");
+	auto pos = Vector(1000, 0, 0);
+	auto N = 10000;
+	auto zrot = ZRotation(-M_PI / N);
+	for (int i = 0; i < 12 * N; i++) {
+		test << pos << "\n";
+		pos = zrot * pos;
+	}
+	test.close();
+	return 0;
+	*/
 }

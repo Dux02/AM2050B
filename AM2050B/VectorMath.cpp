@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <iomanip>
+#include <exception>
 
 #include "VectorMath.h"
 
@@ -265,9 +266,19 @@ Matrix3x3::Matrix3x3(long double entries[9])
 // Matrix destructor
 Matrix3x3::~Matrix3x3() { // HIGHLY NECESSARY TO AVOID DATA LEAKS!
 	for (int i = 0; i < 3; i++) {
-		delete[] m[i];
+			delete[] m[i];
 	}
 	delete[] m;
+}
+
+Matrix3x3& Matrix3x3::operator=(const Matrix3x3& mat)
+{
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			m[i][j] = mat.m[i][j];
+		}
+	}
+	return (*this);
 }
 
 // Scalar multiplication
@@ -294,7 +305,9 @@ Matrix3x3 operator*(const Matrix3x3& left, const Matrix3x3& right) {
 }
 // Matrix-vector multiplication
 Vector operator*(const Matrix3x3& m, const Vector& v) {
-	return Vector(m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
+	if (v.size() != 3) { cerr << "Expected a 3-vector for 3x3Matrix-Vector multiplication, but got a " << v.size() << "one instead\n"; exit(1); }
+	return Vector(
+		m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
 		m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
 		m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2]);
 }
