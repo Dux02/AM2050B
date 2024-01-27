@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+
 class Vector {
 	
 	public:
@@ -41,6 +42,7 @@ class Vector {
 		friend Vector operator * (long double value, const Vector& V);
 		friend Vector operator * (const Vector& V, long double value);
 		friend Vector operator / (const Vector& V, long double value);
+		void operator *= (long double val);
 
 		friend Vector VecPolar(long double r, long double theta, long double phi);	//Make a vector from polar coordinates. Theta is angle w/ z-axis
 		friend void CalcPolarCoords(const Vector& Vec, long double& r, long double& theta, long double& phi); //Calculate polar coordinates. Uses pointers

@@ -9,7 +9,8 @@
 #include <queue>
 #include <string>
 #include <cmath>
-#include <variant>
+#include <zlib.h>
+
 #define G 0.000000000066743 //Gravitational constant, 10^-11
 constexpr long double dtcoeff = 12 * 3600;
 const long double AU = 149597870700;		//1 AU in meters
@@ -33,6 +34,8 @@ struct keplerinfo {
 	long double M;					// Mean Anomaly
 	long double E;
 	long double M0;					// Mass of center of orbit (e.g. Sun)
+	long double iM;					// Initial Mean Anomaly
+	int o;							// Number of complete orbits around the sun
 };
 
 keplerinfo convertData(rawkeplerdata rkd, long double T, long double M0);
@@ -115,11 +118,14 @@ public:
 	long double calcTimeStep(PointMass object);
 	void ShiftInitVelsByHalfStep();
 	void simpleSave(std::ostream &output);
+	bool assertValidKepler();
+	void forceKeplerUpdate();
 
 	long double getTime();
 private:
 	//void init();
 	long double dt;
 	long double T;
+	Vector temp;
 	
 };

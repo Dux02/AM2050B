@@ -1,10 +1,12 @@
 #define _USE_MATH_DEFINES
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <cmath>
 #include <random>
 #include <chrono>
-#include "date.h" //Standard library for chrono formatting, not-self-made	
+#include "date.h" //Standard library for chrono formatting, not-self-made
+//#include <zlib.h>
 
 #include "VectorMath.h"
 #include "Simulation.h"
@@ -56,6 +58,35 @@ const planetstats PLANETS[11] = {
 {0.0130e24, 90560, 5906.4e9, 4700, "Pluto"},
 };
 const int SECS_IN_DAY = 24 * 60 * 60;
+
+static void initializeKepSolarSys(std::vector<PointMass>* solarsystem) {
+	auto diff = 1;
+	for (int i = 1; i < 11; i++) {
+		if (PLANETS[i].name == "Moon") {
+			diff++; continue;
+		}
+
+		solarsystem->push_back(PointMass(new keplerinfo(convertData(PLANETS_KEP[i - diff], PLANETS[i].period * SECS_IN_DAY, M0)), PLANETS[i].mass));
+	}
+}
+static std::vector<PointMass> initializeAsteroidSys(long double v0, long double phi = 0) {
+	PointMass Sun(Vector(3), Vector(3), M0, false);
+	std::vector<PointMass> solarsystem = { Sun };
+	initializeKepSolarSys(&solarsystem);
+
+	PointMass* Earth = &solarsystem[3];
+	long double RE = 6371e3;
+	Vector euv = (Earth->r) / Norm(Earth->r);	//Earth unit vector (points Sun-> Earth)
+	auto epv = Cross(euv, Vector(0, 0, 1));		//Perpendicular unit vector (in x-y plane)
+	PointMass Asteroid((2 * RE + Norm(Earth->r)) * euv, -v0 * (epv * std::cosl(phi) - euv * std::sinl(phi)) + Earth->v, 1e12);
+	solarsystem.insert(solarsystem.begin() + 1, Asteroid);
+	return solarsystem;
+}
+static PointMass DebugEarth() {
+	keplerinfo* EarthInfo = new keplerinfo(convertData(PLANETS_KEP[2], PLANETS[3].period * SECS_IN_DAY, M0));
+	return PointMass(EarthInfo, PLANETS[3].mass);
+}
+
 /*
 PointMass KeplerInitializer(keplerinfo data, planetstats planet, long double M_sun) {
 	//Step 0. Set everything to radians
@@ -226,10 +257,6 @@ static int EfficiencyTest() {
 	return 0;
 }
 
-static int CollisionRewind() {
-	return 0;
-}
-
 static int SolarSys() {
 	auto file = openDataFile("ssys ", ".txt");
 	const long double DT = 10;
@@ -272,7 +299,6 @@ static int KeplerSunEarth() {
 	const long double DT = 3600;
 	PointMass Sun(Vector(3), Vector(3), M0, false);
 	keplerinfo* EarthInfo = new keplerinfo(convertData(PLANETS_KEP[2], PLANETS[3].period * SECS_IN_DAY,M0));
-	EarthInfo->e = 0.3;
 	cout << "By the by, this is our initial mean anomaly " << EarthInfo->M << endl;
 	//EarthInfo->M += M_PI;
 	PointMass Earth(EarthInfo, PLANETS[3].mass);
@@ -291,26 +317,19 @@ static int KeplerSunEarth() {
 }
 
 static int KeplerSolarSys() {
-	auto file = std::ofstream("data/kss FINAL.txt");
+	//auto file = std::ofstream("data/kss FINAL.txt");
+	auto file = openDataFile("kss ", ".txt");
 	const long double DT = 36000;
 	PointMass Sun(Vector(3), Vector(3), M0, false);
 	std::vector<PointMass> solarsystem = { Sun };
-	auto diff = 1;
 	auto timer = std::chrono::steady_clock::now();
 	auto omega = std::chrono::steady_clock::now();
+	initializeKepSolarSys(&solarsystem);
 
-	for (int i = 1; i < 11; i++) {
-		if (PLANETS[i].name == "Moon") {
-			diff++; continue;
-		}
-
-		solarsystem.push_back(PointMass(new keplerinfo(convertData(PLANETS_KEP[i - diff], PLANETS[i].period * SECS_IN_DAY, M0)), PLANETS[i].mass));
-		
-	}
 	cout << "Initialized Kepler system in " << stopwatch(timer) << " ms, for " << solarsystem.size() - 1 << " planets\n";
 	Simulation sim(DT, solarsystem);
 
-	auto N = 20000;
+	auto N = 100;
 	for (int i = 0; i < 100 * N; i++) {
 		sim.simpleSave(file);
 		sim.update();
@@ -318,10 +337,258 @@ static int KeplerSolarSys() {
 			cout << "Finished " << ceil(i / N) << "% of simulation in " << stopwatch(timer) << " ms\n";
 		}
 	}
+	cout << "Beginning rewind process!!\n";
+	for (int i = 0; i < 100 * N; i++) {
+		sim.simpleSave(file);
+		sim.rewind();
+	}
+	cout << "Now we investigate the errors due to rewind\n";
+	auto diff = 0;
+	for (int i = 1; i < 11; i++) {
+		if (PLANETS[i].name == "Moon") {
+			diff++; continue;
+		}
+		cout << PLANETS[i].name << ": " << Norm(sim.objects[i - diff].r - solarsystem[i - diff].r) << endl;
+	}
 	file.close();
 	cout << "Finished Solar System simulation run in " << stopwatch(omega) / 1000 << " s" << endl;
 	return 0;
 }
+
+Simulation CollisionRewind(int DT) {
+	//auto file = std::ofstream("data/collision backy.txt");
+	//auto file = openDataFile("col ");
+	PointMass Sun(Vector(3), Vector(3), M0, false);
+	std::vector<PointMass> solarsystem = { Sun };
+	initializeKepSolarSys(&solarsystem);
+
+	PointMass* Earth = &solarsystem[3];
+	long double RE = 6371e3;
+	Vector euv = (Earth->r) / Norm(Earth->r);	//Earth unit vector (points Sun-> Earth)
+	long double V0 = 42e3 * 0.9; //42km/s "escape velocity" out of the solar system
+	V0 = std::sqrtl(G * Earth->m / (2 * RE))*2;
+	cout << "Initial velocity is: " << V0 << endl;
+	auto epv = Cross(euv, Vector(0, 0, 1));		//Perpendicular unit vector (in x-y plane)
+	long double phi = 5 * M_PI / 180;			//Angle represents how parallel it is 0 => not parallel, 90 => parallel
+	PointMass Asteroid((2*RE + Norm(Earth->r)) * euv, -V0 * (epv * std::cosl(phi) - euv*std::sinl(phi)) + Earth->v , 1e12);
+	V0 = Norm(Asteroid.v);
+	cout << "Velocity boy-boy" << Norm(Asteroid.v) << endl;
+	solarsystem.insert(solarsystem.begin() + 1, Asteroid);
+
+	auto timer = std::chrono::steady_clock::now();
+	cout << "Initialized the parameters for the collision rewind system\n";
+	
+	Simulation sim(DT, solarsystem);
+	sim.ShiftInitVelsByHalfStep();
+	auto N = int(365.25*24*60*6/ DT); //1 year
+	for (int i = 0; i < 100 * N; i++) {
+		//sim.simpleSave(file);
+		sim.rewind();
+		if (isnan(sim.objects[1].r[0])) {
+			cout << "Houston, we have a problem" << endl;
+			cout << "OK I pull up\n";
+		}
+		if (i % N == N - 1) {
+			cout << "Finished " << ceil(i / N) << "% of simulation in " << stopwatch(timer) << " ms\n";
+		}
+	}
+	// file.close();
+	cout << "Finished collision rewind run" << endl;
+
+	if (false) {
+		auto file = std::ofstream("INIT_PARAMS.txt");
+		file << std::setprecision(40) << std::scientific;
+		file << date::format("%c", std::chrono::system_clock::now()) << "\n";
+		file << "T: " << sim.getTime() << ", DT: " << DT << ", m: " << Asteroid.m << ", v0: " << V0 << ", phi: " << phi << "\n";
+		file << Asteroid.r << "\n";
+		file << sim.objects[1].r << ";" << sim.objects[1].v << "\n";
+		for (int i = 2; i < sim.objects.size(); i++) {
+			file << sim.objects[i].kepinfo->M << "\n";
+		}
+		file.close();
+	}
+
+	cout << "Out of curiosity, how does the rewind go?" << endl;
+	for (int i = 0; i < 100 * N; i++) {
+		//sim.simpleSave(file);
+		sim.update();
+	}
+	//file.close();
+	cout << "Now just to be sure our simulation time is " << sim.getTime() << endl;
+	cout << "And consequently our asteroid position difference is " << Norm(sim.objects[1].r - Asteroid.r) << endl;
+
+	return sim;
+}
+
+static int CollisionAdjust() {
+	auto paramfile = std::ifstream("INIT_PARAMS.txt");
+	auto lineno = 0;
+	std::string paraminfo;
+
+	PointMass Sun(Vector(3), Vector(3), M0, false);
+	std::vector<PointMass> solarsystem = { Sun };
+	initializeKepSolarSys(&solarsystem);
+	PointMass Asteroid(1e12);
+	Vector EpochPos(3);
+	long double T0 = 0;
+	long double DT0 = 0;
+
+	while (std::getline(paramfile, paraminfo)) {
+		if (lineno == 0) {
+			cout << paraminfo << "\n";
+		}
+		else if (lineno == 1) {
+			std::string temp = paraminfo.substr(paraminfo.find("T: "));
+			//cout << temp.substr(3, temp.find(",") - 3) << endl;
+			T0 = std::stold(temp.substr(3, temp.find(",") - 3));
+			cout << "Current timestamp " << T0 << endl;
+			temp = paraminfo.substr(paraminfo.find("DT: "));
+			DT0 = std::stold(temp.substr(4, temp.find(",") - 4));
+			cout << "Current DT " << DT0 << endl;
+		}
+		else if (lineno == 2) {
+			size_t pos = 0; auto i = 0;
+			while ((pos = paraminfo.find(",")) != std::string::npos) {
+				EpochPos[i] = std::stold(paraminfo.substr(0, pos));
+				paraminfo.erase(0, pos + 1); i++;
+			}
+			EpochPos[2] = std::stold(paraminfo);
+		}
+		else if (lineno == 3) {
+			std::string posdata = paraminfo.substr(0, paraminfo.find(";"));
+			std::string veldata = paraminfo.substr(paraminfo.find(";") + 1);
+			size_t pos = 0; auto i = 0;
+			while ((pos = posdata.find(",")) != std::string::npos) {
+				Asteroid.r[i] = std::stold(posdata.substr(0, pos));
+				posdata.erase(0, pos + 1); i++;
+			}
+			Asteroid.r[2] = std::stold(posdata);
+			pos = 0; i = 0;
+			while ((pos = veldata.find(",")) != std::string::npos) {
+				Asteroid.v[i] = std::stold(veldata.substr(0, pos));
+				veldata.erase(0, pos + 1); i++;
+			}
+			Asteroid.v[2] = std::stold(veldata);
+		}
+		else {
+			//On lineno = 4 we get the 1st planet which has index 1: lineno - 3
+			solarsystem[lineno - 3].kepinfo->M = std::stold(paraminfo);
+			solarsystem[lineno - 3].update(0);
+		}
+		lineno++;
+	}
+	cout << "Initial impact position of asteroid: " << EpochPos << endl;
+	cout << "Rewinded position of asteroid: " << Asteroid.r << endl;
+	cout << "Rewinded velocity of asteroid: " << Asteroid.v << endl;
+	cout << "Finished reading file" << endl;
+
+	auto timer = std::chrono::steady_clock::now();
+	//auto file = openDataFile("coa", ".txt");
+	solarsystem.insert(solarsystem.begin() + 1, Asteroid);
+	auto SF = 10;
+	Simulation sim(DT0/SF, solarsystem, T0);
+	sim.ShiftInitVelsByHalfStep();
+	auto N = int(-T0 / DT0);
+	for (int i = 0; i < SF* N; i++) {
+		sim.update();
+		if (i % int(SF *N / 100) == int(SF *N / 100) - 1) {
+			cout << "Finished " << ceil(100*i / N / SF) << "% of simulation in " << stopwatch(timer) << " ms\n";
+			//cout << "Internal sim time is: " << sim.getTime() / 60 / 60 / 24 / 365.25 << " years\n";
+		}
+	}
+	cout << "Sanity check, current time is: " << sim.getTime() << endl;
+	cout << "Change in positions given by: " << sim.objects[1].r - EpochPos << endl;
+	cout << "Delta r is then: " << Norm(sim.objects[1].r - EpochPos) << endl;
+
+	return 0;
+
+}
+
+static int DTImpactTesting() {
+	auto file = openDataFile("dtit ");
+	file << std::setprecision(8) << std::scientific;
+	long double RE = 6371e3;
+	auto const V0 = std::sqrtl(G * PLANETS[3].mass / (2 * RE)) * 2;
+	auto const phi = 5.0 * M_PI / 180;
+
+	auto solarsystem = initializeAsteroidSys(V0, phi);
+	std::vector<int> scalefactors = { 128,360,348 };	//New DT is DT_0 * sf
+	const long double DT_0 = 10.0; //What is the DT if scalefactor is 1
+	std::vector<Simulation> sims;
+	auto min_sf = *std::min_element(scalefactors.begin(), scalefactors.end());
+	long double N = 24.0*365.0*100.0*60.0*60.0/DT_0;
+	auto K = scalefactors.size();
+	for (int j = 0; j < K; j++) {
+		sims.push_back(Simulation(DT_0 * scalefactors[j], solarsystem));
+		sims[j].ShiftInitVelsByHalfStep();
+	}
+	int svi = 0;
+	for (int i = 0; i < N; i++) {
+		bool savestamp = true;
+		for (int j = 0; j < K; j++) {
+			if (i % scalefactors[j] == (scalefactors[j] - 1)) {
+				sims[j].rewind();
+			}
+			else { savestamp = false; }
+		}
+		if (savestamp) {
+			svi = i;
+			file << sims[0].getTime() << ", " << sims[0].objects[4].r << ", ";
+			//cout << "Currently at: " << sims[0].getTime() << " ...or... " << sims.back().getTime() << endl;
+			for (int j = 0; j < K; j++) {
+				if (!sims[j].assertValidKepler()) {
+					sims[j].forceKeplerUpdate();
+				}
+				//cout << sims[j].objects[1].r << "\n";
+				file << sims[j].objects[1].r;
+				file << (j == K - 1 ? "\n" : ", ");
+			}
+		}
+	}
+	for (int i = N - 1; i > svi; i--) {
+		for (int j = 0; j < K; j++) {
+			if (i % scalefactors[j] == (scalefactors[j] - 1)) {
+				sims[j].update();
+			}
+		}
+	}
+	cout << svi << endl;
+	cout << "Finished rewind, looping back forward!\n";
+	for (int i = 0; i < svi; i++) {
+		bool savestamp = true;
+		for (int j = 0; j < K; j++) {
+			if (i % scalefactors[j] == scalefactors[j] - 1) {
+				sims[j].update();
+			}
+			else { savestamp = false; }
+		}
+		if (savestamp) {
+			file << sims[0].getTime() << ", " << sims[0].objects[4].r << ", ";
+			if (svi / 2 + 100000 > i && i > svi / 2) {
+				auto Earth = DebugEarth(); Earth.update(sims[0].getTime());
+				cout << std::setprecision(8);
+				cout << "Our debug Earth is at " << Earth.r << endl;
+				cout << "Fake Earths are at " << sims[0].objects[4].r << "\n" << sims[1].objects[4].r << "\n" << sims[2].objects[4].r << endl;
+				cout << "We will try to force an adjustment... and now we see...\n\n";
+				sims[0].objects[4].update(0); sims[1].objects[4].update(0); sims[2].objects[4].update(0);
+				cout << "Fake Earths are at " << sims[0].objects[4].r << "\n" << sims[1].objects[4].r << "\n" << sims[2].objects[4].r << endl << endl;
+			}
+			//cout << "Currently at: " << sims[0].getTime() << " ...or... " << sims.back().getTime() << endl;
+			for (int j = 0; j < K; j++) {
+				if (!sims[j].assertValidKepler()) {
+					sims[j].forceKeplerUpdate();
+				}
+				//cout << sims[j].objects[1].r << "\n";
+				file << sims[j].objects[1].r;
+				file << (j == K - 1 ? "\n" : ", ");
+
+			}
+		}
+	}
+	file.close();
+	return 0;
+}
+
 
 int main() {
 	
@@ -333,17 +600,77 @@ int main() {
 	
 	std::cout << planetA.m << ", " << planetB.m << ", " << planetC.m << std::endl;
 	*/
-	return KeplerSolarSys();
-	/*
-	auto test = std::ofstream("rotmat.txt");
-	auto pos = Vector(1000, 0, 0);
-	auto N = 10000;
-	auto zrot = ZRotation(-M_PI / N);
-	for (int i = 0; i < 12 * N; i++) {
-		test << pos << "\n";
-		pos = zrot * pos;
+
+	PointMass Sun(Vector(3), Vector(3), M0, false);
+	std::vector<PointMass> solarsystem = { Sun };
+	initializeKepSolarSys(&solarsystem);
+
+	PointMass* Earth = &solarsystem[3];
+	long double RE = 6371e3;
+	Vector euv = (Earth->r) / Norm(Earth->r);
+	Vector R0 = (2 * RE + Norm(Earth->r)) * euv;
+	cout << std::setprecision(8);
+	cout << R0 << endl;
+	if (typeid(Earth->m) == typeid(double)) {
+		cout << "Mr. What?!?\n";
 	}
-	test.close();
+	if (typeid(Earth->m) == typeid(Sleef_quad)) {
+		cout << "WHAT THE FUCK IS A KILOMETER\n";
+	}
+	
+	/*
+	auto sim1 = CollisionRewind(3600); auto a = sim1.objects;
+	auto sim2 = CollisionRewind(360);	auto b = sim2.objects;
+	auto sim3 = CollisionRewind(180);	auto c = sim3.objects;
+	cout << std::setprecision(8);
+	cout << "How does the position of the Asteroid fare?\n\n";
+	cout << a[1].r << endl; cout << b[1].r << endl; cout << c[1].r << endl;
+	cout << "\nWe see consequentially the difference of 3600->360 is " << Norm(a[1].r - b[1].r) << endl;
+	cout << "And from 360->180 we get " << Norm(b[1].r - c[1].r) << endl;
+	//cout << "So in total 36000->360 gives us " << Norm(a[1].r - c[1].r) << endl;
+	cout << "ABSOLUTE DIFFERENCE 3600: " << Norm(a[1].r - R0) << endl;
+	cout << "ABSOLUTE DIFFERENCE 360: " << Norm(b[1].r - R0) << endl;
+	cout << "ABSOLUTE DIFFERENCE 180: " << Norm(c[1].r - R0) << endl;
+	cout << "===========================================\nAnd now for the Earth?\n\n";
+	cout << a[4].r << endl; cout << b[4].r << endl; cout << c[4].r << endl;
+	cout << "\nThen we get 3600->360 is " << Norm(a[4].r - b[4].r) << endl;
+	cout << "And from 360->180 we get " << Norm(b[4].r - c[4].r) << endl;
+	//cout << "So in total 36000->360 gives us " << Norm(a[4].r - c[4].r) << endl;
+	cout << "ABSOLUTE DIFFERENCE 3600: " << Norm(a[4].r - Earth->r) << endl;
+	cout << "ABSOLUTE DIFFERENCE 360: " << Norm(b[4].r - Earth->r) << endl;
+	cout << "ABSOLUTE DIFFERENCE 180: " << Norm(c[4].r - Earth->r) << endl;
+	
+
+
+	cout << "The end...\n";*/
+	/*
+	auto file = openDataFile("dtcrazy ");
+	for (int DT = 3600; DT > 360; DT -= 40) {
+		file << DT << ", " << Norm(CollisionRewind(DT).objects[1].r - R0) << endl;
+		cout << DT << endl;
+	}
+	file.close();
+	//*/
+	//CollisionRewind(640);
+	DTImpactTesting();
+	/*
+	std::vector<PointMass>sls = { *Earth };
+	auto M0 = Earth->kepinfo->M;
+	Simulation sim(3600, solarsystem);
+	auto N = 1000000;
+	cout << std::setprecision(15);
+	auto file = std::ofstream("Mdrift.txt");
+	for (int i = 0; i < N; i++) {
+		sim.rewind();
+		if (!sim.assertValidKepler()) {
+			cout << "Current time: " << sim.getTime() << endl;
+			cout << "Expected time from M: " << (sim.objects[3].kepinfo->M - M0) * Earth->kepinfo->T / 2.0 / M_PI << endl;
+			cout << "Earth position: " << sim.objects[3].r << "\n\n";
+		}
+	}
+	//*/
+
 	return 0;
-	*/
-}
+
+	//return 0;
+}	

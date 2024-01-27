@@ -1,8 +1,6 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <iostream>
-#include <iomanip>
-#include <exception>
 
 #include "VectorMath.h"
 
@@ -112,7 +110,7 @@ long double Dot(const Vector& left, const Vector& right)
 }
 long double Norm(const Vector& V)
 {
-	return std::sqrt(Dot(V, V));
+	return std::sqrtl(Dot(V, V));
 }
 Vector Cross(const Vector& left, const Vector& right)
 {
@@ -184,6 +182,10 @@ void CalcPolarCoords(const Vector& Vec, long double& r, long double& theta, long
 		theta = std::atan2(Vec[2], rho);
 }
 
+
+void Vector::operator*=(long double val) {
+	for (int i = 0; i < n; i++) { v[i] *= val; }
+}
 
 void Vector::SetZero() {
 	for (int i = 0; i < n; i++) { v[i] = 0; }

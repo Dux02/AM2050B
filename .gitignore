@@ -14,3 +14,7 @@
 *.cpp
 /Testing Corner/x64/Debug
 /AM2050B/zlib-1.3
+/AM2050B/sleef.dll
+/AM2050B/sleef.lib
+/AM2050B/Mdrift.txt
+/AM2050B/dtcrazy.txt
